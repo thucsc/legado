@@ -138,7 +138,7 @@ class ImportBookViewModel(application: Application) : BaseViewModel(application)
         channel.trySend(fileDoc)
         val list = arrayListOf<FileDoc>()
         channel.consumeAsFlow()
-            .mapParallel(64) { fileDoc ->
+            .mapParallel(16) { fileDoc ->
                 fileDoc.list()!!
             }.onEach { fileDocs ->
                 n--
@@ -147,7 +147,9 @@ class ImportBookViewModel(application: Application) : BaseViewModel(application)
                     if (it.isDir) {
                         n++
                         channel.trySend(it)
-                    } else {
+                    } else if (it.name.matches(bookFileRegex)
+                        || it.name.matches(archiveFileRegex)
+                    ) {
                         list.add(it)
                     }
                 }

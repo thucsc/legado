@@ -15,7 +15,6 @@ import io.legado.app.help.book.BookHelp
 import io.legado.app.help.book.isLocal
 import io.legado.app.help.book.isLocalModified
 import io.legado.app.help.book.removeType
-import io.legado.app.help.book.simulatedTotalChapterNum
 import io.legado.app.help.config.AppConfig
 import io.legado.app.help.coroutine.Coroutine
 import io.legado.app.model.ReadManga
@@ -33,7 +32,7 @@ import kotlinx.coroutines.flow.onEmpty
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.take
 
-class MangaViewModel(application: Application) : BaseViewModel(application) {
+class ReadMangaViewModel(application: Application) : BaseViewModel(application) {
 
     private var changeSourceCoroutine: Coroutine<*>? = null
 
@@ -81,10 +80,14 @@ class MangaViewModel(application: Application) : BaseViewModel(application) {
         if ((ReadManga.chapterSize == 0 || book.isLocalModified()) && !loadChapterListAwait(book)) {
             return
         }
-        ensureChapterExist()
 
         //开始加载内容
-        ReadManga.loadContent()
+        if (!isSameBook) {
+            ReadManga.loadContent()
+        } else {
+            ReadManga.loadOrUpContent()
+        }
+
 
         //自动换源
         if (!book.isLocal && ReadManga.bookSource == null) {
@@ -105,8 +108,7 @@ class MangaViewModel(application: Application) : BaseViewModel(application) {
                 }
                 appDb.bookChapterDao.delByBook(oldBook.bookUrl)
                 appDb.bookChapterDao.insert(*cList.toTypedArray())
-                ReadManga.chapterSize = cList.size
-                ReadManga.simulatedChapterSize = book.simulatedTotalChapterNum()
+                ReadManga.onChapterListUpdated(book)
                 return true
             }.onFailure {
                 //加载章节出错
@@ -131,12 +133,6 @@ class MangaViewModel(application: Application) : BaseViewModel(application) {
             //  加载详情页失败
 //            ReadBook.upMsg("详情页出错: ${e.localizedMessage}")
             return false
-        }
-    }
-
-    private fun ensureChapterExist() {
-        if (ReadManga.simulatedChapterSize > 0 && ReadManga.durChapterIndex > ReadManga.simulatedChapterSize - 1) {
-            ReadManga.durChapterIndex = ReadManga.simulatedChapterSize - 1
         }
     }
 
@@ -201,9 +197,7 @@ class MangaViewModel(application: Application) : BaseViewModel(application) {
             appDb.bookDao.insert(book)
             appDb.bookChapterDao.insert(*toc.toTypedArray())
             ReadManga.resetData(book)
-            toc.find { it.title.contains(ReadManga.chapterTitle) }?.run {
-                ReadManga.loadContent(index)
-            } ?: ReadManga.loadContent()
+            ReadManga.loadContent()
         }.onError {
             AppLog.put("换源失败\n$it", it, true)
         }.onFinally {
@@ -222,11 +216,11 @@ class MangaViewModel(application: Application) : BaseViewModel(application) {
 
     fun openChapter(index: Int, durChapterPos: Int = 0) {
         if (index < ReadManga.chapterSize) {
-            ReadManga.chapterChanged = true
+            ReadManga.showLoading()
             ReadManga.durChapterIndex = index
             ReadManga.durChapterPos = durChapterPos
             ReadManga.saveRead()
-            ReadManga.loadContent(index)
+            ReadManga.loadContent()
         }
     }
 

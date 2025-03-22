@@ -1,9 +1,8 @@
-package io.legado.app.ui.book.manga.rv
+package io.legado.app.ui.book.manga.recyclerview
 
 import android.animation.AnimatorSet
 import android.animation.ValueAnimator
 import android.content.Context
-import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
@@ -38,30 +37,17 @@ class WebtoonRecyclerView @JvmOverloads constructor(
     private var mNestedPreScrollListener: IComicPreScroll? = null
     private val listener = GestureListener()
     private val detector = Detector()
-    private val mcRect = RectF()
-    private val blRect = RectF()
-    private val brRect = RectF()
 
     var doubleTapZoom = true
     var tapListener: ((MotionEvent) -> Unit)? = null
     var longTapListener: ((MotionEvent) -> Boolean)? = null
-    var disableMangaScaling = false
-    var disabledClickScroller = false
-
-    private var mTouchMiddle: (() -> Unit)? = null
-    fun onTouchMiddle(init: () -> Unit) = apply { this.mTouchMiddle = init }
-    private var mNextPage: (() -> Unit)? = null
-    fun onNextPage(init: () -> Unit) = apply { this.mNextPage = init }
-    private var mPrevPage: (() -> Unit)? = null
-    fun onPrevPage(init: () -> Unit) = apply { this.mPrevPage = init }
+    var disableMangaScale = false
 
     override fun onMeasure(widthSpec: Int, heightSpec: Int) {
         halfWidth = MeasureSpec.getSize(widthSpec) / 2
         halfHeight = MeasureSpec.getSize(heightSpec) / 2
         if (!heightSet) {
             originalHeight = MeasureSpec.getSize(heightSpec)
-            val width = MeasureSpec.getSize(widthSpec)
-            setClickArea(width, originalHeight)
             heightSet = true
         }
         super.onMeasure(widthSpec, heightSpec)
@@ -103,12 +89,6 @@ class WebtoonRecyclerView @JvmOverloads constructor(
         }
         mNestedPreScrollListener?.onPreScrollListener(this, dx, dy, position)
         return super.dispatchNestedPreScroll(dx, dy, consumed, offsetInWindow, type)
-    }
-
-    private fun setClickArea(width: Int, height: Int) {
-        mcRect.set(width * 0.33f, height * 0.33f, width * 0.66f, height * 0.66f)
-        blRect.set(0f, height * 0.66f, width * 0.33f, height.toFloat())
-        brRect.set(width * 0.66f, height * 0.66f, width.toFloat(), height.toFloat())
     }
 
     private fun getPositionX(positionX: Float): Float {
@@ -250,24 +230,7 @@ class WebtoonRecyclerView @JvmOverloads constructor(
     inner class GestureListener : GestureDetectorWithLongTap.Listener() {
 
         override fun onSingleTapConfirmed(ev: MotionEvent): Boolean {
-            when {
-                mcRect.contains(ev.rawX, ev.rawY) -> {
-                    mTouchMiddle?.invoke()
-                }
-
-                blRect.contains(ev.rawX, ev.rawY) && !disabledClickScroller -> {
-                    mPrevPage?.invoke()
-                }
-
-                brRect.contains(ev.rawX, ev.rawY) && !disabledClickScroller-> {
-                    mNextPage?.invoke()
-                }
-
-                else -> {
-                    tapListener?.invoke(ev)
-
-                }
-            }
+            tapListener?.invoke(ev)
             return false
         }
 
@@ -313,7 +276,7 @@ class WebtoonRecyclerView @JvmOverloads constructor(
                 MotionEvent.ACTION_DOWN -> {
                     scrollPointerId = ev.getPointerId(0)
                     downX = (ev.x + 0.5f).toInt()
-                    downY =(ev.y + 0.5f).toInt()
+                    downY = (ev.y + 0.5f).toInt()
                 }
 
                 MotionEvent.ACTION_POINTER_DOWN -> {
@@ -323,7 +286,7 @@ class WebtoonRecyclerView @JvmOverloads constructor(
                 }
 
                 MotionEvent.ACTION_MOVE -> {
-                    if (disableMangaScaling) {
+                    if (disableMangaScale) {
                         return super.onTouchEvent(ev)
                     }
                     if (isDoubleTapping && isQuickScaling) {
@@ -371,7 +334,7 @@ class WebtoonRecyclerView @JvmOverloads constructor(
                 }
 
                 MotionEvent.ACTION_UP -> {
-                    if (isDoubleTapping && !isQuickScaling && !disableMangaScaling) {
+                    if (isDoubleTapping && !isQuickScaling && !disableMangaScale) {
                         listener.onDoubleTapConfirmed(ev)
                     }
                     isZoomDragging = false

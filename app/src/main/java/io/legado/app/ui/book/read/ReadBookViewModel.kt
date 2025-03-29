@@ -82,7 +82,6 @@ class ReadBookViewModel(application: Application) : BaseViewModel(application) {
     fun initData(intent: Intent, success: (() -> Unit)? = null) {
         execute {
             ReadBook.inBookshelf = intent.getBooleanExtra("inBookshelf", true)
-            ReadBook.tocChanged = intent.getBooleanExtra("tocChanged", false)
             ReadBook.chapterChanged = intent.getBooleanExtra("chapterChanged", false)
             val bookUrl = intent.getStringExtra("bookUrl")
             val book = when {
@@ -177,7 +176,6 @@ class ReadBookViewModel(application: Application) : BaseViewModel(application) {
         execute {
             if (loadChapterListAwait(book)) {
                 ReadBook.upMsg(null)
-                ReadBook.loadContent(resetPageOffset = true)
             }
         }
     }
@@ -239,10 +237,10 @@ class ReadBookViewModel(application: Application) : BaseViewModel(application) {
         if (!AppConfig.syncBookProgress) return
         execute {
             AppWebDav.getBookProgress(book)
-                ?: throw NoStackTraceException("没有进度")
         }.onError {
             AppLog.put("拉取阅读进度失败《${book.name}》\n${it.localizedMessage}", it)
         }.onSuccess { progress ->
+            progress ?: return@onSuccess
             if (progress.durChapterIndex < book.durChapterIndex ||
                 (progress.durChapterIndex == book.durChapterIndex
                         && progress.durChapterPos < book.durChapterPos)
@@ -253,7 +251,6 @@ class ReadBookViewModel(application: Application) : BaseViewModel(application) {
                 AppLog.put("自动同步阅读进度成功《${book.name}》 ${progress.durChapterTitle}")
             }
         }
-
     }
 
     /**

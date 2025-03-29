@@ -232,15 +232,6 @@ fun Book.upType() {
     }
 }
 
-fun BookSource.getBookType(): Int {
-    return when (bookSourceType) {
-        BookSourceType.file -> BookType.text or BookType.webFile
-        BookSourceType.image -> BookType.image
-        BookSourceType.audio -> BookType.audio
-        else -> BookType.text
-    }
-}
-
 fun Book.sync(oldBook: Book) {
     val curBook = appDb.bookDao.getBook(oldBook.bookUrl)!!
     durChapterTime = curBook.durChapterTime
@@ -253,10 +244,15 @@ fun Book.sync(oldBook: Book) {
         }
     }
     canUpdate = curBook.canUpdate
+    readConfig = curBook.readConfig
 }
 
 fun Book.update() {
     appDb.bookDao.update(this)
+}
+
+fun Book.primaryStr(): String {
+    return origin + bookUrl
 }
 
 fun Book.updateTo(newBook: Book): Book {
@@ -351,7 +347,7 @@ fun Book.getExportFileName(
 fun Book.simulatedTotalChapterNum(): Int {
     return if (readSimulating()) {
         val currentDate = LocalDate.now()
-        val daysPassed = between(this.config.startDate, currentDate).days + 1
+        val daysPassed = between(config.startDate, currentDate).days + 1
         // 计算当前应该解锁到哪一章
         val chaptersToUnlock =
             max(0, (config.startChapter ?: 0) + (daysPassed * config.dailyChapters))

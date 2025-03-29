@@ -186,7 +186,7 @@ class ReadBookActivity : BaseReadBookActivity(),
                     viewModel.searchResultIndex = index
                     binding.searchMenu.updateSearchResultIndex(index)
                     binding.searchMenu.selectedSearchResult?.let { currentResult ->
-                        ReadBook.saveCurrentBookProcess() //退出全文搜索恢复此时进度
+                        ReadBook.saveCurrentBookProgress() //退出全文搜索恢复此时进度
                         skipToSearch(currentResult)
                         showActionMenu()
                     }
@@ -198,6 +198,8 @@ class ReadBookActivity : BaseReadBookActivity(),
             if (it.resultCode == RESULT_OK) {
                 setResult(RESULT_DELETED)
                 super.finish()
+            } else {
+                ReadBook.loadOrUpContent()
             }
         }
     private val selectImageDir = registerForActivityResult(HandleFileContract()) {
@@ -269,7 +271,7 @@ class ReadBookActivity : BaseReadBookActivity(),
                 return@addCallback
             }
             //拦截返回供恢复阅读进度
-            if (ReadBook.lastBookPress != null && confirmRestoreProcess != false) {
+            if (ReadBook.lastBookProgress != null && confirmRestoreProcess != false) {
                 restoreLastBookProcess()
                 return@addCallback
             }
@@ -1239,20 +1241,20 @@ class ReadBookActivity : BaseReadBookActivity(),
     /* 恢复到 全文搜索/进度条跳转前的位置 */
     private fun restoreLastBookProcess() {
         if (confirmRestoreProcess == true) {
-            ReadBook.restoreLastBookProcess()
+            ReadBook.restoreLastBookProgress()
         } else if (confirmRestoreProcess == null) {
             alert(R.string.draw) {
                 setMessage(R.string.restore_last_book_process)
                 yesButton {
                     confirmRestoreProcess = true
-                    ReadBook.restoreLastBookProcess() //恢复启动全文搜索前的进度
+                    ReadBook.restoreLastBookProgress() //恢复启动全文搜索前的进度
                 }
                 noButton {
-                    ReadBook.lastBookPress = null
+                    ReadBook.lastBookProgress = null
                     confirmRestoreProcess = false
                 }
                 onCancelled {
-                    ReadBook.lastBookPress = null
+                    ReadBook.lastBookProgress = null
                     confirmRestoreProcess = false
                 }
             }
@@ -1279,7 +1281,7 @@ class ReadBookActivity : BaseReadBookActivity(),
         alert(R.string.chapter_pay) {
             setMessage(chapter.title)
             yesButton {
-                Coroutine.async {
+                Coroutine.async(lifecycleScope) {
                     val source =
                         ReadBook.bookSource ?: throw NoStackTraceException("no book source")
                     val payAction = source.getContentRule().payAction
@@ -1287,15 +1289,18 @@ class ReadBookActivity : BaseReadBookActivity(),
                         throw NoStackTraceException("no pay action")
                     }
                     val analyzeRule = AnalyzeRule(book, source)
+                    analyzeRule.setCoroutineContext(coroutineContext)
                     analyzeRule.setBaseUrl(chapter.url)
                     analyzeRule.chapter = chapter
                     analyzeRule.evalJS(payAction).toString()
                 }.onSuccess(IO) {
                     if (it.isAbsUrl()) {
                         startActivity<WebViewActivity> {
+                            val bookSource = ReadBook.bookSource
                             putExtra("title", getString(R.string.chapter_pay))
                             putExtra("url", it)
-                            IntentData.put(it, ReadBook.bookSource?.getHeaderMap(true))
+                            putExtra("sourceOrigin", bookSource?.bookSourceUrl)
+                            putExtra("sourceName", bookSource?.bookSourceName)
                         }
                     } else if (it.isTrue()) {
                         //购买成功后刷新目录
@@ -1451,7 +1456,7 @@ class ReadBookActivity : BaseReadBookActivity(),
 
     /* 进度条跳转到指定章节 */
     override fun skipToChapter(index: Int) {
-        ReadBook.saveCurrentBookProcess() //退出章节跳转恢复此时进度
+        ReadBook.saveCurrentBookProgress() //退出章节跳转恢复此时进度
         viewModel.openChapter(index)
     }
 

@@ -56,7 +56,6 @@ object ReadBook : CoroutineScope by MainScope() {
     var book: Book? = null
     var callBack: CallBack? = null
     var inBookshelf = false
-    var tocChanged = false
     var chapterSize = 0
     var simulatedChapterSize = 0
     var durChapterIndex = 0
@@ -85,7 +84,7 @@ object ReadBook : CoroutineScope by MainScope() {
     var readStartTime: Long = System.currentTimeMillis()
 
     /* 跳转进度前进度记录 */
-    var lastBookPress: BookProgress? = null
+    var lastBookProgress: BookProgress? = null
 
     /* web端阅读进度记录 */
     var webBookProgress: BookProgress? = null
@@ -97,20 +96,6 @@ object ReadBook : CoroutineScope by MainScope() {
     val downloadScope = CoroutineScope(SupervisorJob() + IO)
     val preDownloadSemaphore = Semaphore(2)
     val executor = globalExecutor
-
-    //暂时保存跳转前进度
-    fun saveCurrentBookProcess() {
-        if (lastBookPress != null) return //避免进度条连续跳转不能覆盖最初的进度记录
-        lastBookPress = book?.let { BookProgress(it) }
-    }
-
-    //恢复跳转前进度
-    fun restoreLastBookProcess() {
-        lastBookPress?.let {
-            setProgress(it)
-            lastBookPress = null
-        }
-    }
 
     fun resetData(book: Book) {
         ReadBook.book = book
@@ -131,11 +116,13 @@ object ReadBook : CoroutineScope by MainScope() {
         callBack?.upMenuView()
         callBack?.upPageAnim()
         upWebBook(book)
-        lastBookPress = null
+        lastBookProgress = null
         webBookProgress = null
         TextFile.clear()
         synchronized(this) {
             loadingChapters.clear()
+            downloadedChapters.clear()
+            downloadFailChapters.clear()
         }
     }
 
@@ -147,7 +134,7 @@ object ReadBook : CoroutineScope by MainScope() {
         } else {
             chapterSize
         }
-        if (durChapterIndex != book.durChapterIndex || tocChanged) {
+        if (durChapterIndex != book.durChapterIndex) {
             durChapterIndex = book.durChapterIndex
             durChapterPos = book.durChapterPos
             clearTextChapter()
@@ -165,6 +152,8 @@ object ReadBook : CoroutineScope by MainScope() {
         upWebBook(book)
         synchronized(this) {
             loadingChapters.clear()
+            downloadedChapters.clear()
+            downloadFailChapters.clear()
         }
     }
 
@@ -217,6 +206,20 @@ object ReadBook : CoroutineScope by MainScope() {
         }
     }
 
+    //暂时保存跳转前进度
+    fun saveCurrentBookProgress() {
+        if (lastBookProgress != null) return //避免进度条连续跳转不能覆盖最初的进度记录
+        lastBookProgress = book?.let { BookProgress(it) }
+    }
+
+    //恢复跳转前进度
+    fun restoreLastBookProgress() {
+        lastBookProgress?.let {
+            setProgress(it)
+            lastBookProgress = null
+        }
+    }
+
     fun clearTextChapter() {
         prevTextChapter = null
         curTextChapter = null
@@ -250,29 +253,28 @@ object ReadBook : CoroutineScope by MainScope() {
         syncSuccessAction: (() -> Unit)? = null
     ) {
         if (!AppConfig.syncBookProgress) return
-        book?.let {
-            Coroutine.async {
-                AppWebDav.getBookProgress(it)
-            }.onError {
-                AppLog.put("拉取阅读进度失败", it)
-            }.onSuccess { progress ->
-                if (progress == null || progress.durChapterIndex < it.durChapterIndex ||
-                    (progress.durChapterIndex == it.durChapterIndex
-                            && progress.durChapterPos < it.durChapterPos)
-                ) {
-                    // 服务器没有进度或者进度比服务器快，上传现有进度
-                    Coroutine.async {
-                        AppWebDav.uploadBookProgress(BookProgress(it), uploadSuccessAction)
-                        it.update()
-                    }
-                } else if (progress.durChapterIndex > it.durChapterIndex ||
-                    progress.durChapterPos > it.durChapterPos
-                ) {
-                    // 进度比服务器慢，执行传入动作
-                    newProgressAction?.invoke(progress)
-                } else {
-                    syncSuccessAction?.invoke()
+        val book = book ?: return
+        Coroutine.async {
+            AppWebDav.getBookProgress(book)
+        }.onError {
+            AppLog.put("拉取阅读进度失败", it)
+        }.onSuccess { progress ->
+            if (progress == null || progress.durChapterIndex < book.durChapterIndex ||
+                (progress.durChapterIndex == book.durChapterIndex
+                        && progress.durChapterPos < book.durChapterPos)
+            ) {
+                // 服务器没有进度或者进度比服务器快，上传现有进度
+                Coroutine.async {
+                    AppWebDav.uploadBookProgress(BookProgress(book), uploadSuccessAction)
+                    book.update()
                 }
+            } else if (progress.durChapterIndex > book.durChapterIndex ||
+                progress.durChapterPos > book.durChapterPos
+            ) {
+                // 进度比服务器慢，执行传入动作
+                newProgressAction?.invoke(progress)
+            } else {
+                syncSuccessAction?.invoke()
             }
         }
     }
@@ -556,29 +558,27 @@ object ReadBook : CoroutineScope by MainScope() {
         resetPageOffset: Boolean = false,
         success: (() -> Unit)? = null
     ) {
-        if (addLoading(index)) {
-            Coroutine.async {
-                val book = book!!
-                appDb.bookChapterDao.getChapter(book.bookUrl, index)?.let { chapter ->
-                    BookHelp.getContent(book, chapter)?.let {
-                        contentLoadFinish(
-                            book,
-                            chapter,
-                            it,
-                            upContent,
-                            resetPageOffset,
-                            success = success
-                        )
-                    } ?: download(
-                        downloadScope,
+        Coroutine.async {
+            val book = book!!
+            val chapter = appDb.bookChapterDao.getChapter(book.bookUrl, index) ?: return@async
+            if (addLoading(index)) {
+                BookHelp.getContent(book, chapter)?.let {
+                    contentLoadFinish(
+                        book,
                         chapter,
-                        resetPageOffset
+                        it,
+                        upContent,
+                        resetPageOffset,
+                        success = success
                     )
-                } ?: removeLoading(index)
-            }.onError {
-                removeLoading(index)
-                AppLog.put("加载正文出错\n${it.localizedMessage}")
+                } ?: download(
+                    downloadScope,
+                    chapter,
+                    resetPageOffset
+                )
             }
+        }.onError {
+            AppLog.put("加载正文出错\n${it.localizedMessage}")
         }
     }
 
@@ -613,19 +613,13 @@ object ReadBook : CoroutineScope by MainScope() {
             return
         }
         val book = book ?: return
-        if (addLoading(index)) {
-            try {
-                appDb.bookChapterDao.getChapter(book.bookUrl, index)?.let { chapter ->
-                    if (BookHelp.hasContent(book, chapter)) {
-                        removeLoading(chapter.index)
-                        downloadedChapters.add(chapter.index)
-                    } else {
-                        delay(1000)
-                        download(downloadScope, chapter, false, preDownloadSemaphore)
-                    }
-                } ?: removeLoading(index)
-            } catch (_: Exception) {
-                removeLoading(index)
+        val chapter = appDb.bookChapterDao.getChapter(book.bookUrl, index) ?: return
+        if (BookHelp.hasContent(book, chapter)) {
+            downloadedChapters.add(chapter.index)
+        } else {
+            delay(1000)
+            if (addLoading(index)) {
+                download(downloadScope, chapter, false, preDownloadSemaphore)
             }
         }
     }
@@ -667,18 +661,16 @@ object ReadBook : CoroutineScope by MainScope() {
         }
     }
 
+    @Synchronized
     private fun addLoading(index: Int): Boolean {
-        synchronized(this) {
-            if (loadingChapters.contains(index)) return false
-            loadingChapters.add(index)
-            return true
-        }
+        if (loadingChapters.contains(index)) return false
+        loadingChapters.add(index)
+        return true
     }
 
+    @Synchronized
     fun removeLoading(index: Int) {
-        synchronized(this) {
-            loadingChapters.remove(index)
-        }
+        loadingChapters.remove(index)
     }
 
     /**
@@ -931,7 +923,11 @@ object ReadBook : CoroutineScope by MainScope() {
             if (simulatedChapterSize > 0 && durChapterIndex > simulatedChapterSize - 1) {
                 durChapterIndex = simulatedChapterSize - 1
             }
-            clearTextChapter()
+            if (callBack == null) {
+                clearTextChapter()
+            } else {
+                loadContent(true)
+            }
         }
     }
 
@@ -954,8 +950,6 @@ object ReadBook : CoroutineScope by MainScope() {
         preDownloadTask?.cancel()
         downloadScope.coroutineContext.cancelChildren()
         coroutineContext.cancelChildren()
-        downloadedChapters.clear()
-        downloadFailChapters.clear()
         ImageProvider.clear()
         if (!CacheBookService.isRun) {
             CacheBook.close()

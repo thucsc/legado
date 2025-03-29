@@ -650,5 +650,18 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
         set(value) {
             appCtx.putPrefBoolean(PreferKey.enableMangaHorizontalScroll, value)
         }
+
+    var mangaColorFilter
+        get() = appCtx.getPrefString(PreferKey.mangaColorFilter, "")
+        set(value) {
+            appCtx.putPrefString(PreferKey.mangaColorFilter, value)
+        }
+
+    //禁用漫画内标题
+    var hideMangaTitle
+        get() = appCtx.getPrefBoolean(PreferKey.hideMangaTitle, false)
+        set(value) {
+            appCtx.putPrefBoolean(PreferKey.hideMangaTitle, value)
+        }
 }
 

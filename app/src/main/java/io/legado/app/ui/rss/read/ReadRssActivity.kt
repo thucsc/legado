@@ -46,7 +46,6 @@ import io.legado.app.ui.login.SourceLoginActivity
 import io.legado.app.ui.rss.favorites.RssFavoritesDialog
 import io.legado.app.utils.ACache
 import io.legado.app.utils.NetworkUtils
-import io.legado.app.utils.get
 import io.legado.app.utils.gone
 import io.legado.app.utils.invisible
 import io.legado.app.utils.isTrue
@@ -61,7 +60,7 @@ import io.legado.app.utils.splitNotBlank
 import io.legado.app.utils.startActivity
 import io.legado.app.utils.textArray
 import io.legado.app.utils.toastOnUi
-import io.legado.app.utils.toggleNavigationBar
+import io.legado.app.utils.toggleSystemBar
 import io.legado.app.utils.viewbindingdelegate.viewBinding
 import io.legado.app.utils.visible
 import kotlinx.coroutines.launch
@@ -187,7 +186,7 @@ class ReadRssActivity : VMBaseActivity<ActivityRssReadBinding, ReadRssViewModel>
     }
 
     override fun updateFavorite(title: String?, group: String?) {
-        viewModel.rssArticle?.let{
+        viewModel.rssArticle?.let {
             if (title != null) {
                 it.title = title
             }
@@ -294,8 +293,7 @@ class ReadRssActivity : VMBaseActivity<ActivityRssReadBinding, ReadRssViewModel>
                 val url = NetworkUtils.getAbsoluteURL(it.origin, it.link)
                 val html = viewModel.clHtml(content)
                 binding.webView.settings.userAgentString =
-                    viewModel.rssSource?.getHeaderMap()?.get(AppConst.UA_NAME, true)
-                        ?: AppConfig.userAgent
+                    viewModel.headerMap[AppConst.UA_NAME] ?: AppConfig.userAgent
                 if (viewModel.rssSource?.loadWithBaseUrl == true) {
                     binding.webView
                         .loadDataWithBaseURL(url, html, "text/html", "utf-8", url)//不想用baseUrl进else
@@ -383,7 +381,7 @@ class ReadRssActivity : VMBaseActivity<ActivityRssReadBinding, ReadRssViewModel>
             binding.customWebView.addView(view)
             customWebViewCallback = callback
             keepScreenOn(true)
-            toggleNavigationBar(false)
+            toggleSystemBar(false)
         }
 
         override fun onHideCustomView() {
@@ -391,7 +389,7 @@ class ReadRssActivity : VMBaseActivity<ActivityRssReadBinding, ReadRssViewModel>
             binding.llView.visible()
             requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
             keepScreenOn(false)
-            toggleNavigationBar(true)
+            toggleSystemBar(true)
         }
     }
 

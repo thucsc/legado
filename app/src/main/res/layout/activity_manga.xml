@@ -5,17 +5,17 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <io.legado.app.ui.book.manga.rv.WebtoonFrame
-        android:id="@+id/webtoonFrame"
+    <io.legado.app.ui.book.manga.recyclerview.WebtoonFrame
+        android:id="@+id/webtoon_frame"
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
-        <io.legado.app.ui.book.manga.rv.WebtoonRecyclerView
-            android:id="@+id/mRecyclerManga"
+        <io.legado.app.ui.book.manga.recyclerview.WebtoonRecyclerView
+            android:id="@+id/recycler_view"
             android:layout_width="match_parent"
             android:layout_height="match_parent" />
 
-    </io.legado.app.ui.book.manga.rv.WebtoonFrame>
+    </io.legado.app.ui.book.manga.recyclerview.WebtoonFrame>
 
     <io.legado.app.ui.widget.ReaderInfoBarView
         android:id="@+id/infobar"
@@ -29,7 +29,7 @@
         tools:visibility="visible" />
 
     <io.legado.app.ui.book.read.MangaMenu
-        android:id="@+id/mangaMenu"
+        android:id="@+id/manga_menu"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:visibility="gone"
@@ -64,7 +64,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
-                android:text="正在加载中..."
+                android:text="@string/loading"
                 android:textColor="@color/primaryText" />
         </LinearLayout>
 

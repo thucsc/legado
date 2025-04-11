@@ -1,12 +1,10 @@
-package io.legado.app.model.recyclerView
+package io.legado.app.ui.book.manga.recyclerview
 
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.drawable.Drawable
 import android.view.Gravity
 import android.view.ViewGroup
-import android.view.ViewGroup.LayoutParams.MATCH_PARENT
-import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.ProgressBar
@@ -21,11 +19,9 @@ import com.bumptech.glide.load.DataSource
 import com.bumptech.glide.load.engine.GlideException
 import com.bumptech.glide.request.RequestListener
 import com.bumptech.glide.request.target.Target
-import io.legado.app.R
 import io.legado.app.help.glide.progress.ProgressManager
 import io.legado.app.model.BookCover
 import io.legado.app.model.ReadManga
-import io.legado.app.utils.getCompatDrawable
 import io.legado.app.utils.printOnDebug
 
 open class MangaVH<VB : ViewBinding>(val binding: VB, private val context: Context) :
@@ -52,7 +48,7 @@ open class MangaVH<VB : ViewBinding>(val binding: VB, private val context: Conte
     }
 
     @SuppressLint("CheckResult")
-    fun loadImageWithRetry(imageUrl: String, isHorizontal: Boolean) {
+    fun loadImageWithRetry(imageUrl: String, isHorizontal: Boolean, singleImage: Boolean) {
         mFlProgress.isVisible = true
         mLoading.isVisible = true
         mRetry?.isGone = true
@@ -68,8 +64,6 @@ open class MangaVH<VB : ViewBinding>(val binding: VB, private val context: Conte
                 context,
                 imageUrl,
                 sourceOrigin = ReadManga.book?.origin,
-                manga = true,
-                useDefaultCover = context.getCompatDrawable(R.color.book_ant_10)
             ).addListener(object : RequestListener<Drawable> {
                 override fun onLoadFailed(
                     e: GlideException?,
@@ -82,7 +76,7 @@ open class MangaVH<VB : ViewBinding>(val binding: VB, private val context: Conte
                     mRetry?.isVisible = true
                     mProgress.isGone = true
                     itemView.updateLayoutParams<ViewGroup.LayoutParams> {
-                        height = MATCH_PARENT
+                        height = ViewGroup.LayoutParams.MATCH_PARENT
                     }
                     return false
                 }
@@ -97,7 +91,11 @@ open class MangaVH<VB : ViewBinding>(val binding: VB, private val context: Conte
                     mFlProgress.isGone = true
                     if (!isHorizontal) {
                         itemView.updateLayoutParams<ViewGroup.LayoutParams> {
-                            height = WRAP_CONTENT
+                            height = if (singleImage) {
+                                ViewGroup.LayoutParams.MATCH_PARENT
+                            } else {
+                                ViewGroup.LayoutParams.WRAP_CONTENT
+                            }
                         }
                     } else {
                         mImage.updateLayoutParams<FrameLayout.LayoutParams> {

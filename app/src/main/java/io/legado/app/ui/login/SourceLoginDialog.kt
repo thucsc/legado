@@ -8,6 +8,7 @@ import android.view.ViewGroup
 import androidx.core.view.setPadding
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
+import com.script.rhino.runScriptWithContext
 import io.legado.app.R
 import io.legado.app.base.BaseDialogFragment
 import io.legado.app.constant.AppLog
@@ -16,7 +17,6 @@ import io.legado.app.data.entities.rule.RowUi
 import io.legado.app.databinding.DialogLoginBinding
 import io.legado.app.databinding.ItemFilletTextBinding
 import io.legado.app.databinding.ItemSourceEditBinding
-import io.legado.app.help.coroutine.Coroutine
 import io.legado.app.lib.dialogs.alert
 import io.legado.app.lib.theme.primaryColor
 import io.legado.app.ui.about.AppLogDialog
@@ -32,6 +32,7 @@ import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.viewbindingdelegate.viewBinding
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Dispatchers.Main
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import splitties.views.onClick
@@ -119,18 +120,21 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
     }
 
     private fun handleButtonClick(source: BaseSource, rowUi: RowUi, loginUi: List<RowUi>) {
-        Coroutine.async {
+        lifecycleScope.launch(IO) {
             if (rowUi.action.isAbsUrl()) {
                 context?.openUrl(rowUi.action!!)
             } else if (rowUi.action != null) {
                 // JavaScript
                 val buttonFunctionJS = rowUi.action!!
-                val loginJS = source.getLoginJs() ?: return@async
+                val loginJS = source.getLoginJs() ?: return@launch
                 kotlin.runCatching {
-                    source.evalJS("$loginJS\n$buttonFunctionJS") {
-                        put("result", getLoginData(loginUi))
+                    runScriptWithContext {
+                        source.evalJS("$loginJS\n$buttonFunctionJS") {
+                            put("result", getLoginData(loginUi))
+                        }
                     }
                 }.onFailure { e ->
+                    ensureActive()
                     AppLog.put("LoginUI Button ${rowUi.name} JavaScript error", e)
                 }
             }
@@ -161,7 +165,9 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true) {
                 }
             } else if (source.putLoginInfo(GSON.toJson(loginData))) {
                 try {
-                    source.login()
+                    runScriptWithContext {
+                        source.login()
+                    }
                     context?.toastOnUi(R.string.success)
                     withContext(Main) {
                         dismiss()
